@@ -115,6 +115,7 @@ namespace emakefun {
             } while (input.runningTime() < end_time);
             throw "Error: module restart failed.";
         }
+    }
 
     /**
      * Connect to WiFi.
@@ -126,247 +127,247 @@ namespace emakefun {
     //% group="WiFi"
     //% weight=90
     export function wifiConnect(ssid: string, password: string): void {
-            const command = `AT+CWJAP="${ssid}","${password}"`;
-            if (!writeCommand(command, "\r\nOK\r\n", 15000)) {
-                throw "Error: WiFi connection failed.";
-            }
-        }
-
-        /**
-         * Get the WiFi ip information.
-         * @returns The ip, gateway, and netmask information of the current WiFi connection.
-         */
-        //% block="get the WiFi ip information"
-        //% subcategory="EspAt"
-        //% group="WiFi"
-        //% weight=85
-        export function getIpInfo(): { ip: string, gateway: string, netmask: string } {
-            if (!writeCommand("AT+CIPSTA?", '+CIPSTA:ip:"', 500)) {
-                return null;
-            }
-            const ip = emakefun.readUntil('"', 500);
-
-            let gateway = "";
-            let netmask = "";
-
-            if (emakefun.singleFindUtil('+CIPSTA:gateway:"', 100)) {
-                gateway = emakefun.readUntil('"', 500);
-            }
-            if (emakefun.singleFindUtil('+CIPSTA:netmask:"', 100)) {
-                netmask = emakefun.readUntil('"', 500);
-            }
-            if (!ip || !gateway || !netmask) {
-                return null;
-            }
-            if (emakefun.singleFindUtil("\r\nOK\r\n", 100)) {
-                return { ip, gateway, netmask };
-            }
-
-            return null;
-        }
-
-        /**
-         * Get the WiFi mac address.
-         * @returns The current mac address connected to WiFi.
-         */
-        //% block="get the WiFi MAC address"
-        //% subcategory="EspAt"
-        //% group="WiFi"
-        //% weight=80
-        export function getMac(): string {
-            if (!writeCommand("AT+CIPSTAMAC?", '+CIPSTAMAC:"', 500)) {
-                return null;
-            }
-            const mac = emakefun.readUntil('"', 500);
-            if (!mac) {
-                return null;
-            }
-            if (emakefun.singleFindUtil("\r\nOK\r\n", 100)) {
-                return mac;
-            }
-            return null;
-        }
-
-        /**
-         * Get the WiFi ap information.
-         * @returns The ap information of the current WiFi connection.
-         */
-        //% block="get the WiFi ap information"
-        //% subcategory="EspAt"
-        //% group="WiFi"
-        //% weight=75
-        export function getApInfo(): { ssid: string, bssid: string, channel: number, rssi: number } {
-            if (!writeCommand("AT+CWJAP?", '+CWJAP:"', 500)) {
-                return null;
-            }
-            const ssid = emakefun.readUntil('"', 500);
-            if (!ssid || !emakefun.skipNext(",", 100) ||
-                !emakefun.skipNext('"', 100)) {
-                return null;
-            }
-            const bssid = emakefun.readUntil('"', 500);
-            if (!bssid || !emakefun.skipNext(",", 100)) {
-                return null;
-            }
-            const channel = emakefun.parseNumber(500);
-            const rssi = emakefun.parseNumber(500);
-            if (isNaN(channel) || isNaN(rssi)) {
-                return null;
-            }
-
-            if (emakefun.singleFindUtil("\r\nOK\r\n", 100)) {
-                return { ssid, bssid, channel, rssi };
-            }
-            return null;
-        }
-
-        /**
-         * MQTT set user properties.
-         * @param scheme MQTT connection scheme.
-         * @param client_id MQTT client ID.
-         * @param username Username.
-         * @param password Password.
-         * @param path Resource path.
-         */
-        //% block="MQTT set user properties:|connection scheme $scheme|client ID $client_id|username $username|password $password|resource path $path"
-        //% subcategory="EspAt"
-        //% group="MQTT"
-        //% scheme.defl=connectionScheme.kMqttOverTcp
-        //% weight=70
-        export function mqttUserConfig(scheme: connectionScheme, client_id: string, username: string, password: string, path: string): void {
-            const command = `AT+MQTTUSERCFG=0,${scheme},"${client_id}","${username}","${password}",0,0,"${path}"`;
-            if (!writeCommand(command, "\r\nOK\r\n", 500)) {
-                throw "Error: MQTT configuration user properties failed.";
-            }
-        }
-
-        /**
-         * MQTT to connect server.
-         * @param host Server host.
-         * @param port Server port. 
-         * @param reconnect Whether to enable automatically reconnect.
-         */
-        //% block="MQTT to connect server: host $host port $port automatic|reconnect $reconnect"
-        //% subcategory="EspAt"
-        //% group="MQTT"
-        //% port.min=1
-        //% port.max=65535
-        //% port.defl=1
-        //% reconnect.defl=true
-        //% weight=65
-        export function mqttConnect(host: string, port: number, reconnect: boolean): void {
-            const command = `AT+MQTTCONN=0,"${host}",${port},${reconnect ? 1 : 0}`;
-            if (!writeCommand(command, "\r\nOK\r\n", 10000)) {
-                throw "Error: MQTT connection failed.";
-            }
-        }
-
-        /**
-         * MQTT publish messages.
-         * @param topic MQTT topic.
-         * @param data MQTT string message data.
-         * @param qos QoS level.
-         * @param retain Whether to keep the message.
-         * @param timeout_ms Timeout for waiting for response (milliseconds).
-         */
-        //% block="MQTT publish messages $data|to topic $topic|timeout(ms) %timeout_ms|QoS $qos|retain $retain"
-        //% subcategory="EspAt"
-        //% group="MQTT"
-        //% qos.min=0
-        //% qos.max=2
-        //% qos.defl=0
-        //% retain.defl=false
-        //% timeout_ms.min=0
-        //% timeout_ms.defl=1000
-        //% weight=55
-        export function mqttPublish(data: string, topic: string, timeout_ms: number, qos: number, retain: boolean): void {
-            const data_bytes = Buffer.fromUTF8(data);
-            const command = `AT+MQTTPUBRAW=0,"${topic}",${data_bytes.length},${qos},${retain ? 1 : 0}`;
-            if (!writeCommand(command, "\r\nOK\r\n\r\n>", 500)) {
-                throw "Error: MQTT publish content failed.";
-            }
-            const targets = ["+MQTTPUB:OK", "+MQTTPUB:FAIL"];
-            serial.writeBuffer(data_bytes);
-            if (emakefun.multiFindUtil(targets, timeout_ms) != 0) {
-                throw "Error: MQTT publish content failed.";
-            }
-        }
-
-        /**
-         * MQTT subscribe topic.
-         * @param topic MQTT topic.
-         * @param qos QoS level.
-         */
-        //% block="MQTT subscribe topic $topic|QoS $qos"
-        //% subcategory="EspAt"
-        //% group="MQTT"
-        //% qos.min=0
-        //% qos.max=2
-        //% qos.defl=0
-        //% weight=50
-        export function mqttSubscribe(topic: string, qos: number): void {
-            const command = `AT+MQTTSUB=0,"${topic}",${qos}`;
-            if (!writeCommand(command, "\r\nOK\r\n", 500)) {
-                throw "Error: MQTT subscription failed.";
-            }
-        }
-
-        /**
-         * MQTT unsubscribe topic.
-         * @param topic MQTT topic.
-         */
-        //% block="MQTT unsubscribe topic $topic"
-        //% subcategory="EspAt"
-        //% group="MQTT"
-        //% weight=45
-        export function mqttUnsubscribe(topic: string): void {
-            const command = `AT+MQTTUNSUB=0,"${topic}"`;
-            if (!writeCommand(command, "\r\nOK\r\n", 500)) {
-                throw "Error: MQTT unsubscription failed.";
-            }
-        }
-
-        /**
-         * MQTT disconnect connection.
-         */
-        //% block="MQTT disconnect connection"
-        //% subcategory="EspAt"
-        //% group="MQTT"
-        //% weight=40
-        export function mqttDisconnect(): void {
-            if (!writeCommand("AT+MQTTCLEAN=0", "\r\nOK\r\n", 500)) {
-                throw "Error: MQTT disconnect failed.";
-            }
-        }
-
-        /**
-         * MQTT receive messages.
-         * @param timeout_ms Timeout for waiting for response (milliseconds).
-         * @returns Return an object containing topic and message string. If failed, topic is empty and message is empty string.
-         */
-        //% block="MQTT receive messages, timeout(ms) $timeout_ms"
-        //% subcategory="EspAt"
-        //% group="MQTT"
-        //% timeout_ms.defl=500
-        //% timeout_ms.min=0
-        //% weight=35
-        export function mqttReceive(timeout_ms: number): { topic: string, message: string } {
-            if (!emakefun.singleFindUtil('+MQTTSUBRECV:0,"', timeout_ms)) {
-                return null;
-            }
-            const topic = emakefun.readUntil('"', 500);
-
-            if (!topic || !emakefun.skipNext(",", 100)) {
-                return null;
-            }
-            const length = emakefun.parseNumber(500);
-            if (isNaN(length) || length <= 0) {
-                return null;
-            }
-            const message_data = emakefun.readBytes(length, 1000);
-            if (!message_data) {
-                return null;
-            }
-            return { topic: topic, message: message_data.toString() };
+        const command = `AT+CWJAP="${ssid}","${password}"`;
+        if (!writeCommand(command, "\r\nOK\r\n", 15000)) {
+            throw "Error: WiFi connection failed.";
         }
     }
+
+    /**
+     * Get the WiFi ip information.
+     * @returns The ip, gateway, and netmask information of the current WiFi connection.
+     */
+    //% block="get the WiFi ip information"
+    //% subcategory="EspAt"
+    //% group="WiFi"
+    //% weight=85
+    export function getIpInfo(): { ip: string, gateway: string, netmask: string } {
+        if (!writeCommand("AT+CIPSTA?", '+CIPSTA:ip:"', 500)) {
+            return null;
+        }
+        const ip = emakefun.readUntil('"', 500);
+
+        let gateway = "";
+        let netmask = "";
+
+        if (emakefun.singleFindUtil('+CIPSTA:gateway:"', 100)) {
+            gateway = emakefun.readUntil('"', 500);
+        }
+        if (emakefun.singleFindUtil('+CIPSTA:netmask:"', 100)) {
+            netmask = emakefun.readUntil('"', 500);
+        }
+        if (!ip || !gateway || !netmask) {
+            return null;
+        }
+        if (emakefun.singleFindUtil("\r\nOK\r\n", 100)) {
+            return { ip, gateway, netmask };
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the WiFi mac address.
+     * @returns The current mac address connected to WiFi.
+     */
+    //% block="get the WiFi MAC address"
+    //% subcategory="EspAt"
+    //% group="WiFi"
+    //% weight=80
+    export function getMac(): string {
+        if (!writeCommand("AT+CIPSTAMAC?", '+CIPSTAMAC:"', 500)) {
+            return null;
+        }
+        const mac = emakefun.readUntil('"', 500);
+        if (!mac) {
+            return null;
+        }
+        if (emakefun.singleFindUtil("\r\nOK\r\n", 100)) {
+            return mac;
+        }
+        return null;
+    }
+
+    /**
+     * Get the WiFi ap information.
+     * @returns The ap information of the current WiFi connection.
+     */
+    //% block="get the WiFi ap information"
+    //% subcategory="EspAt"
+    //% group="WiFi"
+    //% weight=75
+    export function getApInfo(): { ssid: string, bssid: string, channel: number, rssi: number } {
+        if (!writeCommand("AT+CWJAP?", '+CWJAP:"', 500)) {
+            return null;
+        }
+        const ssid = emakefun.readUntil('"', 500);
+        if (!ssid || !emakefun.skipNext(",", 100) ||
+            !emakefun.skipNext('"', 100)) {
+            return null;
+        }
+        const bssid = emakefun.readUntil('"', 500);
+        if (!bssid || !emakefun.skipNext(",", 100)) {
+            return null;
+        }
+        const channel = emakefun.parseNumber(500);
+        const rssi = emakefun.parseNumber(500);
+        if (isNaN(channel) || isNaN(rssi)) {
+            return null;
+        }
+
+        if (emakefun.singleFindUtil("\r\nOK\r\n", 100)) {
+            return { ssid, bssid, channel, rssi };
+        }
+        return null;
+    }
+
+    /**
+     * MQTT set user properties.
+     * @param scheme MQTT connection scheme.
+     * @param client_id MQTT client ID.
+     * @param username Username.
+     * @param password Password.
+     * @param path Resource path.
+     */
+    //% block="MQTT set user properties:|connection scheme $scheme|client ID $client_id|username $username|password $password|resource path $path"
+    //% subcategory="EspAt"
+    //% group="MQTT"
+    //% scheme.defl=connectionScheme.kMqttOverTcp
+    //% weight=70
+    export function mqttUserConfig(scheme: connectionScheme, client_id: string, username: string, password: string, path: string): void {
+        const command = `AT+MQTTUSERCFG=0,${scheme},"${client_id}","${username}","${password}",0,0,"${path}"`;
+        if (!writeCommand(command, "\r\nOK\r\n", 500)) {
+            throw "Error: MQTT configuration user properties failed.";
+        }
+    }
+
+    /**
+     * MQTT to connect server.
+     * @param host Server host.
+     * @param port Server port. 
+     * @param reconnect Whether to enable automatically reconnect.
+     */
+    //% block="MQTT to connect server: host $host port $port automatic|reconnect $reconnect"
+    //% subcategory="EspAt"
+    //% group="MQTT"
+    //% port.min=1
+    //% port.max=65535
+    //% port.defl=1
+    //% reconnect.defl=true
+    //% weight=65
+    export function mqttConnect(host: string, port: number, reconnect: boolean): void {
+        const command = `AT+MQTTCONN=0,"${host}",${port},${reconnect ? 1 : 0}`;
+        if (!writeCommand(command, "\r\nOK\r\n", 10000)) {
+            throw "Error: MQTT connection failed.";
+        }
+    }
+
+    /**
+     * MQTT publish messages.
+     * @param topic MQTT topic.
+     * @param data MQTT string message data.
+     * @param qos QoS level.
+     * @param retain Whether to keep the message.
+     * @param timeout_ms Timeout for waiting for response (milliseconds).
+     */
+    //% block="MQTT publish messages $data|to topic $topic|timeout(ms) %timeout_ms|QoS $qos|retain $retain"
+    //% subcategory="EspAt"
+    //% group="MQTT"
+    //% qos.min=0
+    //% qos.max=2
+    //% qos.defl=0
+    //% retain.defl=false
+    //% timeout_ms.min=0
+    //% timeout_ms.defl=1000
+    //% weight=55
+    export function mqttPublish(data: string, topic: string, timeout_ms: number, qos: number, retain: boolean): void {
+        const data_bytes = Buffer.fromUTF8(data);
+        const command = `AT+MQTTPUBRAW=0,"${topic}",${data_bytes.length},${qos},${retain ? 1 : 0}`;
+        if (!writeCommand(command, "\r\nOK\r\n\r\n>", 500)) {
+            throw "Error: MQTT publish content failed.";
+        }
+        const targets = ["+MQTTPUB:OK", "+MQTTPUB:FAIL"];
+        serial.writeBuffer(data_bytes);
+        if (emakefun.multiFindUtil(targets, timeout_ms) != 0) {
+            throw "Error: MQTT publish content failed.";
+        }
+    }
+
+    /**
+     * MQTT subscribe topic.
+     * @param topic MQTT topic.
+     * @param qos QoS level.
+     */
+    //% block="MQTT subscribe topic $topic|QoS $qos"
+    //% subcategory="EspAt"
+    //% group="MQTT"
+    //% qos.min=0
+    //% qos.max=2
+    //% qos.defl=0
+    //% weight=50
+    export function mqttSubscribe(topic: string, qos: number): void {
+        const command = `AT+MQTTSUB=0,"${topic}",${qos}`;
+        if (!writeCommand(command, "\r\nOK\r\n", 500)) {
+            throw "Error: MQTT subscription failed.";
+        }
+    }
+
+    /**
+     * MQTT unsubscribe topic.
+     * @param topic MQTT topic.
+     */
+    //% block="MQTT unsubscribe topic $topic"
+    //% subcategory="EspAt"
+    //% group="MQTT"
+    //% weight=45
+    export function mqttUnsubscribe(topic: string): void {
+        const command = `AT+MQTTUNSUB=0,"${topic}"`;
+        if (!writeCommand(command, "\r\nOK\r\n", 500)) {
+            throw "Error: MQTT unsubscription failed.";
+        }
+    }
+
+    /**
+     * MQTT disconnect connection.
+     */
+    //% block="MQTT disconnect connection"
+    //% subcategory="EspAt"
+    //% group="MQTT"
+    //% weight=40
+    export function mqttDisconnect(): void {
+        if (!writeCommand("AT+MQTTCLEAN=0", "\r\nOK\r\n", 500)) {
+            throw "Error: MQTT disconnect failed.";
+        }
+    }
+
+    /**
+     * MQTT receive messages.
+     * @param timeout_ms Timeout for waiting for response (milliseconds).
+     * @returns Return an object containing topic and message string. If failed, topic is empty and message is empty string.
+     */
+    //% block="MQTT receive messages, timeout(ms) $timeout_ms"
+    //% subcategory="EspAt"
+    //% group="MQTT"
+    //% timeout_ms.defl=500
+    //% timeout_ms.min=0
+    //% weight=35
+    export function mqttReceive(timeout_ms: number): { topic: string, message: string } {
+        if (!emakefun.singleFindUtil('+MQTTSUBRECV:0,"', timeout_ms)) {
+            return null;
+        }
+        const topic = emakefun.readUntil('"', 500);
+
+        if (!topic || !emakefun.skipNext(",", 100)) {
+            return null;
+        }
+        const length = emakefun.parseNumber(500);
+        if (isNaN(length) || length <= 0) {
+            return null;
+        }
+        const message_data = emakefun.readBytes(length, 1000);
+        if (!message_data) {
+            return null;
+        }
+        return { topic: topic, message: message_data.toString() };
+    }
+}
